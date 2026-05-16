@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PUB-SUB-ALERT — Emergency Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow+Condensed:wght@300;400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #09090c;
+    --surface: #111118;
+    --border: #1e1e2e;
+    --text: #e2e0d8;
+    --muted: #5a5870;
+    --weather: #3b9eff;
+    --earthquake: #ff7043;
+    --flood: #00b8d4;
+    --fire: #ff4500;
+    --emergency: #ff1744;
+    --green: #00e676;
+    --yellow: #ffd740;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: var(--bg); color: var(--text); font-family: 'Barlow Condensed', sans-serif; min-height: 100vh; overflow-x: hidden; }
+  body::before { content: ''; position: fixed; inset: 0; background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.03) 2px, rgba(0,0,0,0.03) 4px); pointer-events: none; z-index: 999; }
+  header { border-bottom: 1px solid var(--border); padding: 16px 32px; display: flex; align-items: center; justify-content: space-between; background: var(--surface); }
+  .logo { display: flex; align-items: center; gap: 12px; }
+  .logo-icon { width: 32px; height: 32px; border: 2px solid var(--emergency); border-radius: 4px; display: flex; align-items: center; justify-content: center; animation: pulse-border 2s ease-in-out infinite; }
+  @keyframes pulse-border { 0%,100%{border-color:var(--emergency);box-shadow:0 0 0 0 rgba(255,23,68,0.4)} 50%{border-color:#ff6090;box-shadow:0 0 0 6px rgba(255,23,68,0)} }
+  .logo-icon svg { width: 16px; height: 16px; fill: var(--emergency); }
+  .logo-text { font-size: 20px; font-weight: 700; letter-spacing: 0.15em; text-transform: uppercase; }
+  .logo-sub { font-family: 'Share Tech Mono', monospace; font-size: 10px; color: var(--muted); letter-spacing: 0.2em; }
+  .status-dot { display: flex; align-items: center; gap: 8px; font-family: 'Share Tech Mono', monospace; font-size: 12px; color: var(--muted); }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); transition: background 0.3s; }
+  .dot.connected { background: var(--green); box-shadow: 0 0 6px var(--green); animation: blink 2s ease-in-out infinite; }
+  .dot.error { background: var(--emergency); }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.4} }
+  .main { display: grid; grid-template-columns: 320px 1fr; height: calc(100vh - 65px); }
+  .left-panel { border-right: 1px solid var(--border); display: flex; flex-direction: column; background: var(--surface); }
+  .panel-title { padding: 16px 20px 12px; font-size: 11px; font-weight: 600; letter-spacing: 0.2em; text-transform: uppercase; color: var(--muted); border-bottom: 1px solid var(--border); font-family: 'Share Tech Mono', monospace; }
+  .identity-section { padding: 20px; border-bottom: 1px solid var(--border); }
+  .role-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 16px; }
+  .role-tab { padding: 8px; border: 1px solid var(--border); background: transparent; color: var(--muted); font-family: 'Barlow Condensed', sans-serif; font-size: 14px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; cursor: pointer; border-radius: 4px; transition: all 0.2s; }
+  .role-tab.active { border-color: var(--green); color: var(--green); background: rgba(0,230,118,0.08); }
+  .input-row { display: flex; gap: 8px; margin-bottom: 12px; }
+  .text-input { flex: 1; background: var(--bg); border: 1px solid var(--border); color: var(--text); padding: 8px 12px; font-family: 'Share Tech Mono', monospace; font-size: 13px; border-radius: 4px; outline: none; transition: border-color 0.2s; }
+  .text-input:focus { border-color: var(--green); }
+  .text-input::placeholder { color: var(--muted); }
+  .btn { padding: 8px 16px; border: 1px solid currentColor; background: transparent; font-family: 'Barlow Condensed', sans-serif; font-size: 13px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; cursor: pointer; border-radius: 4px; transition: all 0.2s; }
+  .btn-connect { color: var(--green); width: 100%; padding: 10px; font-size: 14px; }
+  .btn-connect:hover { background: rgba(0,230,118,0.1); }
+  .btn-connect:disabled { color: var(--muted); cursor: not-allowed; }
+  .send-section { padding: 20px; border-bottom: 1px solid var(--border); }
+  .alert-type-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 12px; }
+  .type-btn { padding: 7px 6px; font-size: 12px; font-weight: 600; letter-spacing: 0.08em; border-radius: 3px; background: transparent; cursor: pointer; transition: all 0.15s; text-transform: uppercase; font-family: 'Barlow Condensed', sans-serif; }
+  .type-btn[data-type="WEATHER"]    { border: 1px solid var(--weather);    color: var(--weather); }
+  .type-btn[data-type="EARTHQUAKE"] { border: 1px solid var(--earthquake); color: var(--earthquake); }
+  .type-btn[data-type="FLOOD"]      { border: 1px solid var(--flood);      color: var(--flood); }
+  .type-btn[data-type="FIRE"]       { border: 1px solid var(--fire);       color: var(--fire); }
+  .type-btn[data-type="EMERGENCY"]  { border: 1px solid var(--emergency);  color: var(--emergency); grid-column: 1/-1; }
+  .type-btn.selected { color: #000 !important; }
+  .type-btn[data-type="WEATHER"].selected    { background: var(--weather); }
+  .type-btn[data-type="EARTHQUAKE"].selected { background: var(--earthquake); }
+  .type-btn[data-type="FLOOD"].selected      { background: var(--flood); }
+  .type-btn[data-type="FIRE"].selected       { background: var(--fire); }
+  .type-btn[data-type="EMERGENCY"].selected  { background: var(--emergency); }
+  .send-row { display: flex; gap: 8px; }
+  .btn-send { color: var(--yellow); white-space: nowrap; }
+  .btn-send:hover:not(:disabled) { background: rgba(255,215,64,0.1); }
+  .btn-send:disabled { color: var(--muted); cursor: not-allowed; }
+  .stats-section { padding: 20px; display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .stat-card { background: var(--bg); border: 1px solid var(--border); border-radius: 4px; padding: 12px; }
+  .stat-label { font-family: 'Share Tech Mono', monospace; font-size: 10px; color: var(--muted); letter-spacing: 0.15em; text-transform: uppercase; margin-bottom: 4px; }
+  .stat-value { font-size: 28px; font-weight: 700; color: var(--text); line-height: 1; }
+  .right-panel { display: flex; flex-direction: column; overflow: hidden; }
+  .feed-header { padding: 16px 24px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; background: var(--surface); }
+  .feed-title { font-size: 11px; font-weight: 600; letter-spacing: 0.2em; text-transform: uppercase; color: var(--muted); font-family: 'Share Tech Mono', monospace; }
+  .clear-btn { font-size: 11px; color: var(--muted); background: none; border: none; cursor: pointer; font-family: 'Share Tech Mono', monospace; letter-spacing: 0.1em; text-transform: uppercase; }
+  .clear-btn:hover { color: var(--text); }
+  .alert-feed { flex: 1; overflow-y: auto; padding: 16px 24px; display: flex; flex-direction: column; gap: 8px; }
+  .alert-feed::-webkit-scrollbar { width: 4px; }
+  .alert-feed::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+  .alert-card { border-radius: 4px; padding: 14px 16px; border-left: 3px solid; background: var(--surface); animation: slideIn 0.3s ease-out; display: grid; grid-template-columns: auto 1fr auto; gap: 12px; align-items: center; }
+  @keyframes slideIn { from{transform:translateX(-12px);opacity:0} to{transform:translateX(0);opacity:1} }
+  .alert-card.WEATHER    { border-color: var(--weather); }
+  .alert-card.EARTHQUAKE { border-color: var(--earthquake); }
+  .alert-card.FLOOD      { border-color: var(--flood); }
+  .alert-card.FIRE       { border-color: var(--fire); }
+  .alert-card.EMERGENCY  { border-color: var(--emergency); animation: slideIn 0.3s ease-out, flash 0.6s ease-out 0.3s; }
+  @keyframes flash { 0%{background:rgba(255,23,68,0.25)} 100%{background:var(--surface)} }
+  .alert-badge { font-family: 'Share Tech Mono', monospace; font-size: 10px; font-weight: 600; letter-spacing: 0.15em; padding: 3px 7px; border-radius: 2px; text-transform: uppercase; }
+  .alert-card.WEATHER    .alert-badge { background: rgba(59,158,255,0.15);  color: var(--weather); }
+  .alert-card.EARTHQUAKE .alert-badge { background: rgba(255,112,67,0.15);  color: var(--earthquake); }
+  .alert-card.FLOOD      .alert-badge { background: rgba(0,184,212,0.15);   color: var(--flood); }
+  .alert-card.FIRE       .alert-badge { background: rgba(255,69,0,0.15);    color: var(--fire); }
+  .alert-card.EMERGENCY  .alert-badge { background: rgba(255,23,68,0.2);    color: var(--emergency); }
+  .alert-msg { font-size: 15px; font-weight: 400; color: var(--text); line-height: 1.3; }
+  .alert-meta { font-family: 'Share Tech Mono', monospace; font-size: 10px; color: var(--muted); white-space: nowrap; text-align: right; line-height: 1.6; }
+  .empty-state { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--muted); gap: 12px; }
+  .empty-icon { width: 48px; height: 48px; border: 1px solid var(--border); border-radius: 50%; display: flex; align-items: center; justify-content: center; opacity: 0.5; }
+  .empty-text { font-family: 'Share Tech Mono', monospace; font-size: 12px; letter-spacing: 0.15em; text-align: center; line-height: 1.8; }
+  .log-section { border-top: 1px solid var(--border); background: var(--surface); padding: 8px 24px; max-height: 80px; overflow-y: auto; }
+  .log-line { font-family: 'Share Tech Mono', monospace; font-size: 11px; color: var(--muted); line-height: 1.8; }
+  .log-line.ok  { color: var(--green); }
+  .log-line.err { color: var(--emergency); }
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">
+    <div class="logo-icon">
+      <svg viewBox="0 0 24 24"><path d="M12 2L1 21h22L12 2zm0 3.5L20.5 19h-17L12 5.5zM11 10v4h2v-4h-2zm0 6v2h2v-2h-2z"/></svg>
+    </div>
+    <div>
+      <div class="logo-text">PUB-SUB-ALERT</div>
+      <div class="logo-sub">Emergency Broadcast System</div>
+    </div>
+  </div>
+  <div class="status-dot">
+    <div class="dot" id="conn-dot"></div>
+    <span id="conn-label">DISCONNECTED</span>
+  </div>
+</header>
+
+<div class="main">
+  <div class="left-panel">
+    <div class="panel-title">// Control Panel</div>
+    <div class="identity-section">
+      <div class="role-tabs">
+        <button class="role-tab active" id="tab-sub" onclick="setRole('SUBSCRIBER')">Subscriber</button>
+        <button class="role-tab" id="tab-pub" onclick="setRole('PUBLISHER')">Publisher</button>
+      </div>
+      <div class="input-row">
+        <input class="text-input" id="name-input" placeholder="Your name / station ID" maxlength="30">
+      </div>
+      <button class="btn btn-connect" id="connect-btn" onclick="toggleConnect()">Connect</button>
+    </div>
+
+    <div class="send-section" id="pub-section" style="display:none">
+      <div class="panel-title" style="padding:0 0 12px;border:none;font-size:10px">// Broadcast Alert</div>
+      <div class="alert-type-grid">
+        <button class="type-btn" data-type="WEATHER"    onclick="selectType(this)">Weather</button>
+        <button class="type-btn" data-type="EARTHQUAKE" onclick="selectType(this)">Earthquake</button>
+        <button class="type-btn" data-type="FLOOD"      onclick="selectType(this)">Flood</button>
+        <button class="type-btn" data-type="FIRE"       onclick="selectType(this)">Fire</button>
+        <button class="type-btn" data-type="EMERGENCY"  onclick="selectType(this)">Emergency</button>
+      </div>
+      <div class="send-row">
+        <input class="text-input" id="msg-input" placeholder="Alert message..." onkeydown="if(event.key==='Enter') sendAlert()">
+        <button class="btn btn-send" id="send-btn" onclick="sendAlert()" disabled>Send</button>
+      </div>
+    </div>
+
+    <div class="stats-section">
+      <div class="stat-card"><div class="stat-label">Received</div><div class="stat-value" id="stat-received">0</div></div>
+      <div class="stat-card"><div class="stat-label">Sent</div><div class="stat-value" id="stat-sent">0</div></div>
+      <div class="stat-card"><div class="stat-label">Emergency</div><div class="stat-value" id="stat-emergency" style="color:var(--emergency)">0</div></div>
+      <div class="stat-card"><div class="stat-label">Session</div><div class="stat-value" id="stat-time" style="font-size:18px;color:var(--muted)">00:00</div></div>
+    </div>
+  </div>
+
+  <div class="right-panel">
+    <div class="feed-header">
+      <div class="feed-title">// Live Alert Feed</div>
+      <button class="clear-btn" onclick="clearFeed()">Clear</button>
+    </div>
+    <div class="alert-feed" id="feed">
+      <div class="empty-state" id="empty-state">
+        <div class="empty-icon">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="var(--muted)"><path d="M18 16v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2zm-6 4c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2z"/></svg>
+        </div>
+        <div class="empty-text">Connect to start receiving alerts<br>Open multiple tabs as different subscribers</div>
+      </div>
+    </div>
+    <div class="log-section" id="log"></div>
+  </div>
+</div>
+
+<script>
+  let ws = null, role = 'SUBSCRIBER', selectedType = null, connected = false;
+  let stats = { received: 0, sent: 0, emergency: 0 };
+  let sessionStart = null, timerInterval = null;
+
+  // Auto-detect WebSocket URL: works locally AND on Railway
+  function getWsUrl() {
+    const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+    return proto + '//' + location.host + '/ws';
+  }
+
+  function setRole(r) {
+    role = r;
+    document.getElementById('tab-sub').classList.toggle('active', r === 'SUBSCRIBER');
+    document.getElementById('tab-pub').classList.toggle('active', r === 'PUBLISHER');
+    document.getElementById('pub-section').style.display = r === 'PUBLISHER' ? 'block' : 'none';
+  }
+
+  function selectType(btn) {
+    document.querySelectorAll('.type-btn').forEach(b => b.classList.remove('selected'));
+    btn.classList.add('selected');
+    selectedType = btn.dataset.type;
+    document.getElementById('send-btn').disabled = false;
+  }
+
+  function toggleConnect() {
+    if (connected) { ws && ws.close(); return; }
+    const name = document.getElementById('name-input').value.trim() || 'Anonymous';
+    ws = new WebSocket(getWsUrl());
+    ws.onopen = () => {
+      ws.send(role + '|' + name);
+      connected = true;
+      document.getElementById('conn-dot').className = 'dot connected';
+      document.getElementById('conn-label').textContent = 'CONNECTED';
+      document.getElementById('connect-btn').textContent = 'Disconnect';
+      document.getElementById('name-input').disabled = true;
+      sessionStart = Date.now();
+      timerInterval = setInterval(updateTimer, 1000);
+      log('Connected as ' + role + ' — ' + name, 'ok');
+    };
+    ws.onmessage = (e) => {
+      const [type, ...rest] = e.data.split('|');
+      if (type === 'ALERT') handleAlert(rest.join('|'));
+      else if (type === 'STATUS') log(rest.join('|'), 'ok');
+    };
+    ws.onclose = () => {
+      connected = false;
+      document.getElementById('conn-dot').className = 'dot error';
+      document.getElementById('conn-label').textContent = 'DISCONNECTED';
+      document.getElementById('connect-btn').textContent = 'Connect';
+      document.getElementById('name-input').disabled = false;
+      clearInterval(timerInterval);
+      log('Disconnected', 'err');
+    };
+    ws.onerror = () => log('Connection failed — is the server running?', 'err');
+  }
+
+  function handleAlert(raw) {
+    const typeMatch = raw.match(/\[(\w+)\]/g);
+    const alertType = typeMatch && typeMatch[1] ? typeMatch[1].replace(/\[|\]/g,'') : 'EMERGENCY';
+    const parts = raw.split(': ');
+    const msg = parts.slice(1).join(': ') || raw;
+    const meta = parts[0] || '';
+    stats.received++;
+    if (alertType === 'EMERGENCY') stats.emergency++;
+    updateStats();
+    const feed = document.getElementById('feed');
+    document.getElementById('empty-state') && document.getElementById('empty-state').remove();
+    const card = document.createElement('div');
+    card.className = 'alert-card ' + alertType;
+    card.innerHTML = `<span class="alert-badge">${alertType}</span><div class="alert-msg">${esc(msg)}</div><div class="alert-meta">${esc(meta)}</div>`;
+    feed.prepend(card);
+  }
+
+  function sendAlert() {
+    if (!connected || !selectedType) return;
+    const msg = document.getElementById('msg-input').value.trim();
+    if (!msg) return;
+    ws.send(selectedType + '|' + msg);
+    stats.sent++;
+    updateStats();
+    document.getElementById('msg-input').value = '';
+    log('Sent ' + selectedType + ': ' + msg, 'ok');
+  }
+
+  function clearFeed() {
+    document.getElementById('feed').innerHTML = '<div class="empty-state"><div class="empty-text">Feed cleared</div></div>';
+  }
+
+  function updateStats() {
+    document.getElementById('stat-received').textContent = stats.received;
+    document.getElementById('stat-sent').textContent = stats.sent;
+    document.getElementById('stat-emergency').textContent = stats.emergency;
+  }
+
+  function updateTimer() {
+    const s = Math.floor((Date.now() - sessionStart) / 1000);
+    document.getElementById('stat-time').textContent =
+      String(Math.floor(s/60)).padStart(2,'0') + ':' + String(s%60).padStart(2,'0');
+  }
+
+  function log(msg, cls) {
+    const el = document.getElementById('log');
+    const line = document.createElement('div');
+    line.className = 'log-line ' + (cls||'');
+    line.textContent = '> ' + msg;
+    el.appendChild(line);
+    el.scrollTop = el.scrollHeight;
+  }
+
+  function esc(s) {
+    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+</script>
+</body>
+</html>
